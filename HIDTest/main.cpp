@@ -68,6 +68,100 @@ uint32_t GetPatchInfoFromPath(string strPathFilePath, vector<uint8_t> &oListOfPa
 
     return 0;
 }
+string convert_version(GetVersion_t version)
+{
+    string strVersion;
+
+    time_t buildtime = { 0 };
+    struct tm mytm = { 0 };
+    char timestr[80] = { 0 };
+    buildtime = (time_t)version.buildtime;
+    localtime_s(&mytm, &buildtime);
+    (void)strftime(&(timestr[0]), (sizeof((timestr)) / sizeof((timestr)[0])), "%d-%b-%Y %I:%M:%S %p %Z", &mytm);
+    strVersion += "buildtime = ";
+    strVersion += timestr;
+    strVersion += "\n";
+
+    strVersion += "buildnum = " + std::to_string(version.buildnum) + "\n";
+    strVersion += "vmajor = " + std::to_string(version.vmajor) + "\n";
+    strVersion += "vminor = " + std::to_string(version.vminor) + "\n";
+    strVersion += "target = " + std::to_string(version.target) + "\n";
+
+    string strProduct;
+    if (65 == version.product)
+        strProduct = "PROMETHEUS";
+    else if (66 == version.product)
+        strProduct = "PROMETHEUSPBL";
+    else if (67 == version.product)
+        strProduct = "PROMETHEUSMSBL";
+    else
+        strProduct = "?";
+    strVersion += "product = " + std::to_string(version.product) + " (" + strProduct + ")\n";
+
+    strVersion += "siliconrev = " + std::to_string(version.siliconrev) + "\n";
+    strVersion += "formalrel = " + std::to_string(version.formalrel) + "\n";
+    strVersion += "platform = " + std::to_string(version.platform) + "\n";
+    strVersion += "patch = " + std::to_string(version.patch) + "\n";
+
+    strVersion += "serial_number = 0x";
+    for (uint8_t i = 0; i < 6; i++)
+    {
+        char buffer[_MAX_INT_DIG] = { 0 };
+        sprintf_s(buffer, sizeof (buffer), "%02x", version.serial_number[i]);
+        strVersion += buffer;
+        strVersion += " ";
+    }
+    strVersion += "\n";
+
+    strVersion += "security[2] = 0x";
+    for (uint8_t i = 0; i < 2; i++)
+    {
+        char buffer[_MAX_INT_DIG] = { 0 };
+        sprintf_s(buffer, sizeof (buffer), "%02x", version.security[i]);
+        strVersion += buffer;
+        strVersion += " ";
+    }
+    strVersion += "\n";
+
+    strVersion += "patchsig = 0x";
+    char buf[_MAX_INT_DIG] = { 0 };
+    sprintf_s(buf, sizeof (buf), "%08lx", version.patchsig);
+    strVersion += buf;
+    strVersion += "\n";
+
+    strVersion += "iface = " + std::to_string(version.iface) + "\n";
+
+    strVersion += "otpsig[3] = 0x";
+    for (uint8_t i = 0; i < 3; i++)
+    {
+        char buffer[_MAX_INT_DIG] = { 0 };
+        sprintf_s(buffer, sizeof (buffer), "%02x", version.otpsig[i]);
+        strVersion += buffer;
+        strVersion += " ";
+    }
+    strVersion += "\n";
+
+    memset(buf, 0, _MAX_INT_DIG);
+    strVersion += "otpspare1 = 0x";
+    sprintf_s(buf, sizeof (buf), "%04x", version.otpspare1);
+    strVersion += buf;
+    strVersion += "\n";
+
+    memset(buf, 0, _MAX_INT_DIG);
+    strVersion += "reserved = 0x";
+    sprintf_s(buf, sizeof (buf), "%02x", version.reserved);
+    strVersion += buf;
+    strVersion += "\n";
+
+    memset(buf, 0, _MAX_INT_DIG);
+    strVersion += "device_type = 0x";
+    memset(buf, 0, _MAX_INT_DIG);
+    sprintf_s(buf, sizeof (buf), "%02x", version.device_type);
+    strVersion += buf;
+    strVersion += "\n";
+
+    return strVersion;
+}
 
 int main(int argc, char* argv[])
 {
@@ -98,6 +192,7 @@ int main(int argc, char* argv[])
         return rc;
     }
 
+#if 0
     time_t buildtime = { 0 };
     struct tm mytm = { 0 };
     wchar_t timestr[80] = { 0 };
@@ -137,9 +232,15 @@ int main(int argc, char* argv[])
     wprintf(L"otpspare1 = 0x%04x\n", version.otpspare1);
     wprintf(L"reserved = 0x%02x\n", version.reserved);
     wprintf(L"device_type = 0x%02x\n", version.device_type);
+#endif
+
+    string strVersion = convert_version(version);
+    cout << "version : \n" << strVersion << endl;
 
     delete pFpMaxeye; 
     pFpMaxeye = nullptr;
+
+    system("pause");
 
     return 0;
 }
