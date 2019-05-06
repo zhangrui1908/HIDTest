@@ -11,31 +11,8 @@
 #include <io.h>
 
 #include "FpMaxeye.h"
-//#include "vcsTypes.h"
-//#include "vcsfw_v4.h"
-
-typedef struct GetVersion_s
-{
-    uint32_t   buildtime;        /* Unix-style build time, in seconds   */
-    /*  from 1/1/1970 12:00 AM GMT         */
-    uint32_t   buildnum;         /* build number                        */
-    uint8_t    vmajor;           /* major version                       */
-    uint8_t    vminor;           /* minor version                       */
-    uint8_t    target;           /* target, e.g. VCSFW_TARGET_ROM       */
-    uint8_t    product;          /* product, e.g.  VCSFW_PRODUCT_FALCON */
-    uint8_t    siliconrev;       /* silicon revision                    */
-    uint8_t    formalrel;        /* boolean: non-zero -> formal release */
-    uint8_t    platform;         /* Platform (PCB) revision             */
-    uint8_t    patch;            /* patch level                         */
-    uint8_t    serial_number[6]; /* 48-bit Serial Number                */
-    uint8_t    security[2];      /* bytes 0 and 1 of OTP                */
-    uint32_t   patchsig;         /* opaque patch signature              */
-    uint8_t    iface;            /* interface type, see below           */
-    uint8_t    otpsig[3];        /* OTP Patch Signature                 */
-    uint16_t   otpspare1;        /* spare space                         */
-    uint8_t    reserved;         /* reserved byte                       */
-    uint8_t    device_type;      /* device type                         */
-} GetVersion_t;
+#include "vcsTypes.h"
+#include "vcsfw_v4.h"
 
 using namespace std;
 
@@ -68,7 +45,8 @@ uint32_t GetPatchInfoFromPath(string strPathFilePath, vector<uint8_t> &oListOfPa
 
     return 0;
 }
-string convert_version(GetVersion_t version)
+
+string convert_version(vcsfw_reply_get_version_t version)
 {
     string strVersion;
 
@@ -166,6 +144,8 @@ string convert_version(GetVersion_t version)
 int main(int argc, char* argv[])
 {
     int rc{ 0 };
+
+    rc = FpMaxeye::GetDeviceInfo();
     
     FpMaxeye *pFpMaxeye = nullptr;
     rc = FpMaxeye::CreateInstance(pFpMaxeye);
@@ -182,9 +162,81 @@ int main(int argc, char* argv[])
         cout << "Error to Open!" << endl;
         return rc;
     }
+    
+    uint16_t status(0);
+    uint32_t replysize(0);
+    ::Sleep(100);
 
-    GetVersion_t version = { 0 };
-    rc = pFpMaxeye->ExecuteCmd(1, NULL, 0, (uint8_t*)&version, sizeof(GetVersion_t));
+    //TIDLE
+   /* uint16_t idle_time(0);
+    rc = pFpMaxeye->ExecuteCmd(VCSFW_CMD_TIDLE_SET, (uint8_t*)&idle_time, sizeof(uint16_t), NULL, 0, status, replysize);
+    if (0 != rc || 0 != status)
+    {
+        delete pFpMaxeye; pFpMaxeye = nullptr;
+        cout << "Error to ExecuteCmd!" << endl;
+        return rc == 0 ? rc : status;
+    }*/
+
+
+    vcsfw_reply_get_version_t version = { 0 };
+    rc = pFpMaxeye->FpGetVersion((uint8_t*)&version, sizeof(vcsfw_reply_get_version_t));
+    if (0 != rc)
+    {
+        delete pFpMaxeye; pFpMaxeye = nullptr;
+        cout << "Error to FpGetVersion!" << endl;
+        return rc;
+    }
+    string strVersion = convert_version(version);
+    cout << "version : \n" << strVersion << endl;
+
+    vcsfw_reply_get_startinfo_t startinfo = { 0 };
+    rc = pFpMaxeye->ExecuteCmd(VCSFW_CMD_GET_STARTINFO, NULL, 0, (uint8_t*)&startinfo, sizeof(vcsfw_reply_get_startinfo_t), status, replysize);
+    if (0 != rc || 0 != status)
+    {
+        delete pFpMaxeye; pFpMaxeye = nullptr;
+        cout << "Error to ExecuteCmd!" << endl;
+        return rc == 0 ? rc : status;
+    }
+    cout << "start_type : " << startinfo.start_type << endl;
+    cout << "reset_type : " << startinfo.reset_type << endl;
+    cout << "start_status : " << startinfo.start_status << endl;
+    cout << "sanity_pc : " << startinfo.sanity_pc << endl;
+    cout << "sanity_code : " << startinfo.sanity_code << endl;
+    cout << "reset_nvinfo : ";
+    for (uint32_t i = 0; i < 13; i++)
+        cout << startinfo.reset_nvinfo[i];
+    cout << endl;
+
+    ::Sleep(500);
+    //reply
+    uint32_t result(0), replyCounts(0);
+    vector<uint8_t> listOfMTRecord(12);
+    rc = pFpMaxeye->FpTestRun(9, NULL, 0, listOfMTRecord.data(), listOfMTRecord.size(), result, replyCounts);
+    if (0 != rc)
+    {
+        delete pFpMaxeye; pFpMaxeye = nullptr;
+        cout << "Error to ExecuteCmd!" << endl;
+        return rc;
+    }
+    for (size_t t = 0; t < listOfMTRecord.size(); t++)
+        cout << listOfMTRecord[t] << endl;
+
+#if 0
+    //pixeltest
+    vcsfw_cmd_pixel_test_t cmd_pixel_test = { 0 };
+    cmd_pixel_test.maxPixelAdc = 950;
+    cmd_pixel_test.minPixelAdc = 450;
+    cmd_pixel_test.maxRowAveDelta = 324;
+    cmd_pixel_test.maxColAveDelta = 162;
+    cmd_pixel_test.maxRowPixelRange = 320;
+    cmd_pixel_test.maxColPixelRange = 320;
+
+    ::Sleep(500);
+    //reply
+    uint32_t result(0), replyCounts(0);
+    vcsfw_reply_pixel_test_results_t reply_pixel_test_results = { 0 };
+    rc = pFpMaxeye->FpTestRun(VCSFW_IST_OPCODE_PIXEL_TEST, (uint8_t*)&cmd_pixel_test, sizeof(vcsfw_cmd_pixel_test_t),
+        (uint8_t*)&reply_pixel_test_results, sizeof(vcsfw_reply_pixel_test_results_t), result, replyCounts);
     if (0 != rc)
     {
         delete pFpMaxeye; pFpMaxeye = nullptr;
@@ -192,50 +244,15 @@ int main(int argc, char* argv[])
         return rc;
     }
 
-#if 0
-    time_t buildtime = { 0 };
-    struct tm mytm = { 0 };
-    wchar_t timestr[80] = { 0 };
-    buildtime = (time_t)version.buildtime;
-    localtime_s(&mytm, &buildtime);
-    (void)wcsftime(&(timestr[0]), (sizeof((timestr)) / sizeof((timestr)[0])), L"%d-%b-%Y %I:%M:%S %p %Z", &mytm);
-    wprintf(L"buildtime = %s\n", timestr);
-    wprintf(L"buildnum = %lu\n", version.buildnum);
-    wprintf(L"vmajor = %lu\n", version.vmajor);
-    wprintf(L"vminor = %lu\n", version.vminor);
-    wprintf(L"target = %u\n", version.target);
-
-    wstring strProduct;
-    if (65 == version.product)
-        strProduct = L"PROMETHEUS";
-    else if (66 == version.product)
-        strProduct = L"PROMETHEUSPBL";
-    else if (67 == version.product)
-        strProduct = L"PROMETHEUSMSBL";
-    else
-        strProduct = L"?";
-    wprintf(L"product = %u (%s)\n", version.product, strProduct.c_str());
-
-    wprintf(L"siliconrev = %u\n", version.siliconrev);
-    wprintf(L"formalrel = %u\n", version.formalrel);
-    wprintf(L"platform = %u 0x%02x\n", version.platform, version.platform);
-
-    wprintf(L"patch = %u\n", version.patch);
-
-    wprintf(L"serial_number = 0x%02x %02x %02x %02x %02x %02x\n",
-        version.serial_number[0], version.serial_number[1], version.serial_number[2], version.serial_number[3], version.serial_number[4], version.serial_number[5]);
-
-    wprintf(L"security[2]= 0x%02x %02x\n", version.security[0], version.security[1]);
-    wprintf(L"patchsig = 0x%08lx\n", version.patchsig);
-    wprintf(L"iface = %u\n", version.iface);
-    wprintf(L"otpsig[3] = %02x %02x %02x\n", version.otpsig[0], version.otpsig[1], version.otpsig[2]);
-    wprintf(L"otpspare1 = 0x%04x\n", version.otpspare1);
-    wprintf(L"reserved = 0x%02x\n", version.reserved);
-    wprintf(L"device_type = 0x%02x\n", version.device_type);
+    printf("PIXEL_TEST:\n");
+    printf("result : %d\n", result);
+    printf("numMaxPixels : %d\n", reply_pixel_test_results.numMaxPixels);
+    printf("numMinPixels : %d\n", reply_pixel_test_results.numMinPixels);
+    printf("numRowAvePixels : %d\n", reply_pixel_test_results.numRowAvePixels);
+    printf("numColAvePixels : %d\n", reply_pixel_test_results.numColAvePixels);
+    printf("numRangeRows : %d\n", reply_pixel_test_results.numRangeRows);
+    printf("numRangeCols : %d\n", reply_pixel_test_results.numRangeCols);
 #endif
-
-    string strVersion = convert_version(version);
-    cout << "version : \n" << strVersion << endl;
 
     delete pFpMaxeye; 
     pFpMaxeye = nullptr;
